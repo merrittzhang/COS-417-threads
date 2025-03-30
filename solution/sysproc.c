@@ -97,35 +97,32 @@ sys_uptime(void)
 }
 
 int
-sys_clone(void)
+clone(void *stack)
 {
-  void *stack;
-  if(argptr(0, (void*)&stack, PGSIZE) < 0)
-    return -1;
-
   struct proc *np;
   struct proc *curproc = myproc();
 
-  np = allocproc();
-  if(np == 0)
+  if(stack == 0)
+    return -1;
+
+  if((np = allocproc()) == 0)
     return -1;
 
   np->pgdir = curproc->pgdir;
   np->sz = curproc->sz;
   np->parent = curproc;
-  
+
   *np->tf = *curproc->tf;
   np->tf->esp = (uint)stack;
   np->tf->eax = 0;
-  
+
   np->isThread = 1;
 
-  for(int i = 0; i < NOFILE; i++)
+  for (int i = 0; i < NOFILE; i++)
     np->ofile[i] = curproc->ofile[i];
   np->cwd = idup(curproc->cwd);
-  
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
-  
+
   acquire(&ptable.lock);
   np->state = RUNNABLE;
   release(&ptable.lock);
@@ -134,19 +131,28 @@ sys_clone(void)
 }
 
 int
-sys_join(void)
+sys_clone(void)
+{
+  void *stack;
+  if(argptr(0, (void *)&stack, PGSIZE) < 0)
+    return -1;
+  return clone(stack);
+}
+
+int
+join(void)
 {
   struct proc *p;
-  int have_thread;
+  int haveThread;
   struct proc *curproc = myproc();
 
   acquire(&ptable.lock);
-  for(;;){
-    have_thread = 0;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->parent == curproc && p->isThread){
-        have_thread = 1;
-        if(p->state == ZOMBIE){
+  for (;;) {
+    haveThread = 0;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      if (p->parent == curproc && p->isThread) {
+        haveThread = 1;
+        if (p->state == ZOMBIE) {
           int tid = p->pid;
           kfree(p->kstack);
           p->kstack = 0;
@@ -156,7 +162,7 @@ sys_join(void)
         }
       }
     }
-    if(!have_thread){
+    if (!haveThread) {
       release(&ptable.lock);
       return -1;
     }
@@ -165,10 +171,15 @@ sys_join(void)
 }
 
 int
-sys_lock(void)
+sys_join(void)
 {
-  int *l;
-  if(argptr(0, (void*)&l, sizeof(int)) < 0)
+  return join();
+}
+
+int
+lock(int *l)
+{
+  if(l == 0)
     return -1;
   while(xchg(l, 1) != 0) {
     acquire(&ptable.lock);
@@ -179,14 +190,31 @@ sys_lock(void)
 }
 
 int
-sys_unlock(void)
+sys_lock(void)
 {
   int *l;
-  if(argptr(0, (void*)&l, sizeof(int)) < 0)
+  if(argptr(0, (void *)&l, sizeof(int)) < 0)
+    return -1;
+  return lock(l);
+}
+
+int
+unlock(int *l)
+{
+  if(l == 0)
     return -1;
   *l = 0;
   acquire(&ptable.lock);
   wakeup(l);
   release(&ptable.lock);
   return 0;
+}
+
+int
+sys_unlock(void)
+{
+  int *l;
+  if(argptr(0, (void *)&l, sizeof(int)) < 0)
+    return -1;
+  return unlock(l);
 }

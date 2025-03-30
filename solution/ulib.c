@@ -105,9 +105,8 @@ memmove(void *vdst, const void *vsrc, int n)
   return vdst;
 }
 
-int clone(void *stack);
-
-int thread_create(void (*fn)(void *), void *arg) {
+int 
+thread_create(void (*fn)(void *), void *arg) {
   void *stack = malloc(4096);
   if(stack == 0)
     return -1;
