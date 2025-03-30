@@ -100,7 +100,7 @@ int
 sys_clone(void)
 {
   void *stack;
-  if(argptr(0, (void *)&stack, PGSIZE) < 0)
+  if(argptr(0, (void*)&stack, PGSIZE) < 0)
     return -1;
   return clone(stack);
 }
@@ -115,7 +115,7 @@ int
 sys_lock(void)
 {
   int *l;
-  if(argptr(0, (void *)&l, sizeof(int)) < 0)
+  if(argptr(0, (void*)&l, sizeof(int)) < 0)
     return -1;
   return lock(l);
 }
@@ -124,7 +124,7 @@ int
 sys_unlock(void)
 {
   int *l;
-  if(argptr(0, (void *)&l, sizeof(int)) < 0)
+  if(argptr(0, (void*)&l, sizeof(int)) < 0)
     return -1;
   return unlock(l);
 }

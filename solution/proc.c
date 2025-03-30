@@ -539,9 +539,9 @@ clone(void *stack)
 {
   struct proc *np;
   struct proc *curproc = myproc();
-  uint old_sp, old_bp, stack_base, offset;
+  uint oldsp, oldbp, base, offset;
 
-  if (stack == 0)
+  if(stack == 0)
     return -1;
 
   if((np = allocproc()) == 0)
@@ -553,24 +553,25 @@ clone(void *stack)
 
   *np->tf = *curproc->tf;
 
-  old_sp = curproc->tf->esp;
-  old_bp = curproc->tf->ebp;
-  stack_base = PGROUNDDOWN(old_sp);
-  offset = old_sp - stack_base;
+  oldsp = curproc->tf->esp;
+  oldbp = curproc->tf->ebp;
+  base = PGROUNDDOWN(oldsp);
+  offset = oldsp - base;
 
-  memmove(stack, (void*)stack_base, PGSIZE);
+  memmove(stack, (void*)base, PGSIZE);
 
   np->tf->esp = (uint)stack + offset;
-  np->tf->ebp = (uint)stack + (old_bp - stack_base);
+  np->tf->ebp = (uint)stack + (oldbp - base);
 
   np->tf->eax = 0;
 
   np->isThread = 1;
 
-  for (int i = 0; i < NOFILE; i++)
+  for(int i = 0; i < NOFILE; i++){
     np->ofile[i] = curproc->ofile[i];
+  }
   np->cwd = idup(curproc->cwd);
-  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+  safestrcpy(np->name, curproc->name, sizeof(np->name));
 
   acquire(&ptable.lock);
   np->state = RUNNABLE;
@@ -583,12 +584,11 @@ int
 join(void)
 {
   struct proc *p;
-  int haveThread;
   struct proc *curproc = myproc();
-  int tid;
+  int haveThread, tid;
 
   acquire(&ptable.lock);
-  for (;;) {
+  for(;;){
     haveThread = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->parent == curproc && p->isThread){
@@ -616,7 +616,7 @@ lock(int *l)
 {
   if(l == 0)
     return -1;
-  while(xchg(l, 1) != 0) {
+  while(xchg(l, 1) != 0){
     acquire(&ptable.lock);
     sleep(l, &ptable.lock);
     release(&ptable.lock);
