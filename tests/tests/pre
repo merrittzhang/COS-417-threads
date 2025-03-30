@@ -1,0 +1,6 @@
+./edit-makefile.sh ../solution/Makefile test_1,test_2,test_3,test_4,test_5,test_6,test_7 > ../solution/Makefile.test
+cp -f tests/test_helper.h ../solution/
+cp -f tests/test_*.c ../solution/
+cd ../solution/
+make -f Makefile.test clean
+cd ../tests

@@ -5,6 +5,7 @@
 ## Changelog
 
   * Add simple test, `testthreads.c.`
+  * Added description on `thread_join`
 
 ## Overview
 Overview
@@ -20,9 +21,14 @@ Specifically, you'll add four new system calls:
   * `int unlock(int *l)`
   * `int join()`
 
-You'll also add one user-space function that wraps `clone()` for convenience:
+You'll also add a user-space function that wraps `clone()` for convenience:
 
   * `int thread_create(void (*fn) (void *), void *arg)`
+
+Please also add a similar user-space function for join (which could simply be a 
+trivial wrapper function depending on your implementation of join):
+
+  * `int thread_join()`
 
 Finally, depending on your implementation strategy, you may need to
 modify some kernel data structures and related system call
@@ -34,8 +40,8 @@ address space with the stack at the bottom, for example.
 ## Details
 
 Each new function returns -1 on failure. The locking functions (`lock`
-and `unlock`) return 0 on success, and the other three (clone, join,
-and thread_create) return a thread ID.
+and `unlock`) return 0 on success, and the others (clone, join,
+and thread_create, thread_join) return a thread ID.
 
 Getting `clone` working is the first step, and will probably take the
 most time. This call should behave very much like fork, except that

@@ -1,0 +1,1 @@
+Raw call to `clone` and `join`: two threads, simple writer and reader of shared variable.

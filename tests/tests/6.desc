@@ -1,0 +1,1 @@
+`lock` & `unlock`: can enforce ordering with mutual exclusion.
