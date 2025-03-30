@@ -533,3 +533,127 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+int
+clone(void *stack)
+{
+  struct proc *np;
+  struct proc *curproc = myproc();
+  uint oldsp, oldbp, offset;
+
+  if(stack == 0)
+    return -1;
+
+  if((np = allocproc()) == 0)
+    return -1;
+
+  np->pgdir = curproc->pgdir;
+  np->sz = curproc->sz;
+  np->parent = curproc;
+
+  *np->tf = *curproc->tf;
+
+  oldsp = curproc->tf->esp;
+  oldbp = curproc->tf->ebp;
+  uint oldstack_base = PGROUNDDOWN(oldsp);
+
+  memmove(stack, (void*)oldstack_base, PGSIZE);
+
+  offset = oldsp - oldstack_base;
+  np->tf->esp = (uint)stack + offset;
+  np->tf->ebp = (uint)stack + (oldbp - oldstack_base);
+
+  np->tf->eax = 0;
+
+  np->isThread = 1;
+
+  for (int i = 0; i < NOFILE; i++)
+    np->ofile[i] = curproc->ofile[i];
+  np->cwd = idup(curproc->cwd);
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+  acquire(&ptable.lock);
+  np->state = RUNNABLE;
+  release(&ptable.lock);
+
+  return np->pid;
+}
+
+int
+join(void)
+{
+  struct proc *p;
+  int haveThread;
+  struct proc *curproc = myproc();
+
+  acquire(&ptable.lock);
+  for (;;) {
+    haveThread = 0;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      if (p->parent == curproc && p->isThread) {
+        haveThread = 1;
+        if (p->state == ZOMBIE) {
+          int tid = p->pid;
+          kfree(p->kstack);
+          p->kstack = 0;
+          p->state = UNUSED;
+          release(&ptable.lock);
+          return tid;
+        }
+      }
+    }
+    if (!haveThread) {
+      release(&ptable.lock);
+      return -1;
+    }
+    sleep(curproc, &ptable.lock);
+  }
+}
+
+int
+lock(int *l)
+{
+  if(l == 0)
+    return -1;
+  while(xchg(l, 1) != 0) {
+    acquire(&ptable.lock);
+    sleep(l, &ptable.lock);
+    release(&ptable.lock);
+  }
+  return 0;
+}
+
+int
+unlock(int *l)
+{
+  if(l == 0)
+    return -1;
+  *l = 0;
+  acquire(&ptable.lock);
+  wakeup(l);
+  release(&ptable.lock);
+  return 0;
+}
+
+int 
+thread_create(void (*fn)(void *), void *arg) {
+  void *stack = malloc(4096);
+  if(stack == 0)
+    return -1;
+  stack = (void *)(((uint)stack + 4095) & ~(4095));
+  int tid = clone(stack);
+  if(tid < 0) {
+    free(stack);
+    return -1;
+  }
+  if(tid == 0) {
+    fn(arg);
+    free(stack);
+    exit();
+  }
+  return tid;
+}
+
+int thread_join(void) {
+  return join();
+}
