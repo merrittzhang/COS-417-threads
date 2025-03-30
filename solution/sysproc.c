@@ -101,6 +101,7 @@ clone(void *stack)
 {
   struct proc *np;
   struct proc *curproc = myproc();
+  uint oldsp, oldbp, offset;
 
   if(stack == 0)
     return -1;
@@ -113,7 +114,17 @@ clone(void *stack)
   np->parent = curproc;
 
   *np->tf = *curproc->tf;
-  np->tf->esp = (uint)stack;
+
+  oldsp = curproc->tf->esp;
+  oldbp = curproc->tf->ebp;
+  uint oldstack_base = PGROUNDDOWN(oldsp);
+
+  memmove(stack, (void*)oldstack_base, PGSIZE);
+
+  offset = oldsp - oldstack_base;
+  np->tf->esp = (uint)stack + offset;
+  np->tf->ebp = (uint)stack + (oldbp - oldstack_base);
+
   np->tf->eax = 0;
 
   np->isThread = 1;
