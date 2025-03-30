@@ -42,3 +42,4 @@ void* malloc(uint);
 void free(void*);
 int atoi(const char*);
 int thread_create(void (*fn)(void *), void *arg);
+int thread_join(void);
