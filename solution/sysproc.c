@@ -237,3 +237,7 @@ thread_create(void (*fn)(void *), void *arg) {
   }
   return tid;
 }
+
+int thread_join(void) {
+  return join();
+}
