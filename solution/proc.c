@@ -7,6 +7,14 @@
 #include "proc.h"
 #include "spinlock.h"
 
+static struct spinlock glock;
+
+void
+lockinit(void)
+{
+  initlock(&glock, "glock");
+}
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -224,6 +232,7 @@ fork(void)
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
+// “exit()” override so that if isthread=1 => partial exit, else full exit
 void
 exit(void)
 {
@@ -236,15 +245,13 @@ exit(void)
 
   acquire(&ptable.lock);
 
-  if(curp->isthread == 1) {
+  if(curp->isthread == 1){
     curp->state = ZOMBIE;
     wakeup1(curp->parent);
-
     sched();
-    panic("thread exit sched returned");
-  }
-  else {
-    for(fd=0; fd<NOFILE; fd++){
+    panic("thread exit => sched returned");
+  } else {
+    for(fd = 0; fd < NOFILE; fd++){
       if(curp->ofile[fd]){
         fileclose(curp->ofile[fd]);
         curp->ofile[fd] = 0;
@@ -255,20 +262,19 @@ exit(void)
     end_op();
     curp->cwd = 0;
 
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p != curp && p->pgdir == curp->pgdir){
+    for(p=ptable.proc; p<&ptable.proc[NPROC]; p++){
+      if(p->pgdir == curp->pgdir && p != curp){
         p->killed = 1;
         if(p->state == SLEEPING)
           p->state = RUNNABLE;
       }
     }
-
     freevm(curp->pgdir);
 
     curp->state = ZOMBIE;
     wakeup1(curp->parent);
     sched();
-    panic("exit: zombie sched returned");
+    panic("exit => sched returned");
   }
 }
 
@@ -541,19 +547,19 @@ procdump(void)
 int
 clone(void *stack)
 {
-  struct proc *np;
   struct proc *curp = myproc();
+  struct proc *np;
 
   if((np = allocproc()) == 0){
     return -1;
   }
-
   np->pgdir = curp->pgdir;
 
-  if(curp->threadcount < 1)
-    curp->threadcount = 1;
-  curp->threadcount++;
-  np->threadcount = curp->threadcount;
+  if(curp->refCount < 1){
+    curp->refCount = 1;
+  }
+  curp->refCount++;
+  np->refCount = curp->refCount;
   np->isthread = 1;
 
   *np->tf = *curp->tf;
@@ -577,7 +583,7 @@ clone(void *stack)
 }
 
 int
-join(void)
+join()
 {
   struct proc *p;
   struct proc *curp = myproc();
@@ -587,40 +593,61 @@ join(void)
   for(;;){
     havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->parent != curp) 
+      if(p->parent != curp)
         continue;
-      if(!p->isthread) 
+      if(!p->isthread)
         continue;
       havekids = 1;
       if(p->state == ZOMBIE){
         pid = p->pid;
+
         kfree(p->kstack);
         p->kstack = 0;
 
-        curp->threadcount--;
-        if(curp->threadcount <= 0){
+        curp->refCount--;
+        if(curp->refCount <= 0){
           freevm(p->pgdir);
-          curp->threadcount = 0;
+          curp->refCount = 0;
         }
 
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
-        p->isthread = 0;
-        p->threadcount = 0;
         p->killed = 0;
+        p->isthread = 0;
+        p->refCount = 0;
         p->state = UNUSED;
 
         release(&ptable.lock);
         return pid;
       }
     }
-
     if(!havekids || curp->killed){
       release(&ptable.lock);
       return -1;
     }
-
     sleep(curp, &ptable.lock);
   }
+}
+
+int
+lock(int *l)
+{
+  acquire(&glock);
+  while(*l == 1){
+    sleep(l, &glock);
+  }
+  *l = 1;
+  release(&glock);
+  return 0;
+}
+
+int
+unlock(int *l)
+{
+  acquire(&glock);
+  *l = 0;
+  wakeup(l);
+  release(&glock);
+  return 0;
 }

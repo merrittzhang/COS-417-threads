@@ -90,7 +90,7 @@ malloc(uint nbytes)
 }
 
 int
-thread_create(void (*fn)(void*), void *arg)
+thread_create(void (*fn) (void *), void *arg)
 {
   void *stack = malloc(4096);
   if(stack == 0){
@@ -114,6 +114,6 @@ thread_create(void (*fn)(void*), void *arg)
   }
 }
 
-int thread_join(void) {
+int thread_join() {
   return join();
 }
