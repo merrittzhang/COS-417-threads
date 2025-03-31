@@ -106,6 +106,8 @@ memmove(void *vdst, const void *vsrc, int n)
   return vdst;
 }
 
+extern int clone(void *stack);
+
 int
 thread_create(void (*fn)(void*), void *arg)
 {
@@ -124,6 +126,8 @@ thread_create(void (*fn)(void*), void *arg)
   }
   return tid;
 }
+
+extern int join(void);
 
 int
 thread_join(void)
