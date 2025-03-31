@@ -6,11 +6,6 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
-#include "spinlock.h"
-
-struct spinlock ulock;
-
-extern void initlock(struct spinlock*, char*);
 
 int
 sys_fork(void)
@@ -93,58 +88,4 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
-}
-
-extern int clone(void *stack);
-extern int join(void);
-
-
-int
-sys_clone(void)
-{
-  char *stack;
-  if(argptr(0, &stack, sizeof(stack)) < 0)
-    return -1;
-
-  return clone(stack);
-}
-
-int
-sys_join(void)
-{
-  return join();
-}
-
-int
-sys_lock(void)
-{
-  int *userPtr;
-  if(argptr(0, (void*)&userPtr, sizeof(userPtr)) < 0)
-    return -1;
-
-  acquire(&ulock);
-
-  while(*userPtr == 1){
-    sleep(userPtr, &ulock); 
-  }
-
-  *userPtr = 1;
-
-  release(&ulock);
-  return 0;
-}
-
-int
-sys_unlock(void)
-{
-  int *userPtr;
-  if(argptr(0, (void*)&userPtr, sizeof(userPtr)) < 0)
-    return -1;
-
-  acquire(&ulock);
-  *userPtr = 0;
-  wakeup(userPtr);
-
-  release(&ulock);
-  return 0;
 }
