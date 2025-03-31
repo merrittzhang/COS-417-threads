@@ -24,7 +24,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int clone(void *stack);
-int join();
+int join(void);
 int lock(int *l);
 int unlock(int *l);
 
@@ -42,5 +42,5 @@ void* malloc(uint);
 void free(void*);
 int atoi(const char*);
 
-int thread_create(void (*fn) (void *), void *arg);
-int thread_join();
+int thread_create(void (*fn)(void*), void *arg);
+int thread_join(void);

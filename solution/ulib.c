@@ -106,7 +106,7 @@ memmove(void *vdst, const void *vsrc, int n)
 }
 
 int
-thread_create(void (*fn) (void *), void *arg)
+thread_create(void (*fn)(void*), void *arg)
 {
   void *stack = malloc(4096);
   if(stack == 0){
@@ -130,6 +130,6 @@ thread_create(void (*fn) (void *), void *arg)
   }
 }
 
-int thread_join() {
+int thread_join(void) {
   return join();
 }
