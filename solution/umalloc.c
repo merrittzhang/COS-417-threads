@@ -88,32 +88,3 @@ malloc(uint nbytes)
         return 0;
   }
 }
-
-int
-thread_create(void (*fn) (void *), void *arg)
-{
-  void *stack = malloc(4096);
-  if(stack == 0){
-    return -1;
-  }
-  if((uint)stack % 4096){
-  }
-
-  int tid = clone(stack);
-  if(tid < 0){
-    free(stack);
-    return -1;
-  }
-  else if(tid == 0){
-    fn(arg);
-    free(stack);
-    exit(); 
-  }
-  else {
-    return tid;
-  }
-}
-
-int thread_join() {
-  return join();
-}
