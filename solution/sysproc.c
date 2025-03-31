@@ -91,6 +91,11 @@ sys_uptime(void)
   return xticks;
 }
 
+extern int clone(void *stack);
+extern int join();
+extern int lock(int *l);
+extern int unlock(int *l);
+
 int
 sys_clone(void)
 {
