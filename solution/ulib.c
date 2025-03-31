@@ -107,23 +107,27 @@ memmove(void *vdst, const void *vsrc, int n)
 }
 
 int 
-thread_create(void (*fn) (void *), void *args){
-	char *currentEnd = (char *)malloc(8192);
-	int stackStart = ((int)currentEnd);
-	while(stackStart % 4096 !=0) {
-		stackStart++;
-	}
-	char *stack = (char*)stackStart;
-	int tid=clone(stack);
+thread_create(void (*fn)(void *), void *args) {
+  char *raw_stack = malloc(8192);
+  if(raw_stack == 0){
+    printf(2, "thread_create: malloc failed!\n");
+    return -1;
+  }
 
-	if (tid < 0) {
-		printf(2, "error!\n");
-	} else if (tid == 0) {
-		(*fn)(args);
-		free(currentEnd);	
-		exit();
-	}
-	return tid;
+  uint aligned_stack_addr = ((uint)raw_stack + PGSIZE - 1) & ~(PGSIZE - 1);
+  char *aligned_stack = (char *)aligned_stack_addr;
+
+  int tid = clone(aligned_stack);
+  if(tid < 0){
+    printf(2, "thread_create: clone failed!\n");
+    free(raw_stack);
+    return -1;
+  } else if(tid == 0) {
+    (*fn)(args);
+    free(raw_stack);
+    exit();
+  }
+  return tid;
 }
 
 int
