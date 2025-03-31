@@ -541,17 +541,19 @@ clone(void *stack)
   np->parent = curproc;
 
   *np->tf = *curproc->tf;
-  uint offset = curproc->tf->esp;  
-  np->tf->esp = (uint)stack + offset;
-  np->tf->ebp = (uint)stack + curproc->tf->ebp;
+  uint parent_stack_base = PGROUNDUP(curproc->tf->esp) - PGSIZE;
+  uint esp_offset = curproc->tf->esp - parent_stack_base;
+  uint ebp_offset = curproc->tf->ebp - parent_stack_base;
+  np->tf->esp = (uint)stack + esp_offset;
+  np->tf->ebp = (uint)stack + ebp_offset;
 
   np->isClone = 1;
   curproc->refCount++;
   acquire(&ptable.lock);
   {
     struct proc *p;
-    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-      if (p->pgdir == curproc->pgdir)
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->pgdir == curproc->pgdir)
         p->refCount = curproc->refCount;
     }
   }
@@ -559,8 +561,8 @@ clone(void *stack)
 
   np->tf->eax = 0;
 
-  for (i = 0; i < NOFILE; i++) {
-    if (curproc->ofile[i])
+  for(i = 0; i < NOFILE; i++){
+    if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
   }
   np->cwd = idup(curproc->cwd);
@@ -568,6 +570,10 @@ clone(void *stack)
   pid = np->pid;
   np->state = RUNNABLE;
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+  if(pid != 0)
+    yield();
+
   return pid;
 }
 
