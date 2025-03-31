@@ -545,8 +545,11 @@ clone(void *stack)
   np->tf->esp = (uint)stack + (myproc()->tf->esp - PGROUNDUP(myproc()->tf->esp));
   np->tf->ebp = (uint)stack + (myproc()->tf->ebp - PGROUNDUP(myproc()->tf->esp));
 
-  copyout(myproc()->pgdir, (uint)stack, PGROUNDUP(myproc()->tf->esp) - PGSIZE, PGSIZE);
-
+  char *src = uva2ka(myproc()->pgdir, (char*)(PGROUNDUP(myproc()->tf->esp) - PGSIZE));
+  if(src == 0)
+      panic("clone: uva2ka failed");
+  copyout(myproc()->pgdir, (uint)stack, src, PGSIZE);
+  
   np->isClone = 1;
   myproc()->refCount++;
   acquire(&ptable.lock);
