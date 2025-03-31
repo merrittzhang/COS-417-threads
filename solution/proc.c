@@ -88,7 +88,7 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
   p->refCount = 0;
-  p->isClone = 0;
+  p->isThread = 0;
   release(&ptable.lock);
 
   if((p->kstack = kalloc()) == 0){
@@ -166,7 +166,7 @@ growproc(int n)
       return -1;
   }
   myproc()->sz = sz;
-  if(myproc()->isClone || myproc()->refCount > 0){
+  if(myproc()->isThread || myproc()->refCount > 0){
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->pgdir == myproc()->pgdir)
         p->sz = sz;
@@ -235,7 +235,7 @@ exit(void)
   if(myproc() == initproc)
     panic("init exiting");
 
-  if(myproc()->refCount == 0 && myproc()->isClone == 0) {
+  if(myproc()->refCount == 0 && myproc()->isThread == 0) {
     for(fd = 0; fd < NOFILE; fd++){
       if(myproc()->ofile[fd]){
         fileclose(myproc()->ofile[fd]);
@@ -526,13 +526,20 @@ procdump(void)
   }
 }
 
+static inline uint
+adjust_stack_ptr(char *new_stack, uint old_ptr)
+{
+  return (uint)(new_stack + PGSIZE - (PGROUNDUP(old_ptr) - old_ptr));
+}
+
 int
 clone(void *stack)
 {
   int i;
   struct proc *np;
-  if((np = allocproc()) == 0)
+  if((np = allocproc()) == 0){
     return -1;
+  }
 
   if((np->pgdir = myproc()->pgdir) == 0){
     kfree(np->kstack);
@@ -544,13 +551,13 @@ clone(void *stack)
   np->parent = myproc();
   *np->tf = *myproc()->tf;
 
-  np->tf->esp = (uint)(stack + PGSIZE - (PGROUNDUP(myproc()->tf->esp) - myproc()->tf->esp));
-  np->tf->ebp = (uint)(stack + PGSIZE - (PGROUNDUP(myproc()->tf->ebp) - myproc()->tf->ebp));
+  np->tf->esp = adjust_stack_ptr(stack, myproc()->tf->esp);
+  np->tf->ebp = adjust_stack_ptr(stack, myproc()->tf->ebp);
   
   copyout(myproc()->pgdir, (uint)stack, (void*)PGROUNDUP(myproc()->tf->esp) - PGSIZE, (uint)PGSIZE);
 
   myproc()->refCount++;
-  np->isClone=1;
+  np->isThread=1;
   np->refCount = myproc()->refCount; 
    
   acquire(&ptable.lock);
@@ -584,7 +591,7 @@ join(void)
   for(;;){
     havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->parent != myproc() || p->isClone == 0)
+      if(p->parent != myproc() || p->isThread == 0)
         continue;
       havekids = 1;
       if(p->state == ZOMBIE){
