@@ -77,33 +77,29 @@ allocproc(void)
   char *sp;
 
   acquire(&ptable.lock);
-
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       goto found;
-
+  }
   release(&ptable.lock);
   return 0;
 
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+  p->refCount = 0;
+  p->isClone = 0;
   release(&ptable.lock);
 
-  // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
     p->state = UNUSED;
     return 0;
   }
   sp = p->kstack + KSTACKSIZE;
-
-  // Leave room for trap frame.
+  
   sp -= sizeof *p->tf;
   p->tf = (struct trapframe*)sp;
-
-  // Set up new context to start executing at forkret,
-  // which returns to trapret.
+  
   sp -= 4;
   *(uint*)sp = (uint)trapret;
 
@@ -159,18 +155,24 @@ int
 growproc(int n)
 {
   uint sz;
-  struct proc *curproc = myproc();
+  struct proc *p;
 
-  sz = curproc->sz;
+  sz = myproc()->sz;
   if(n > 0){
-    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if((sz = allocuvm(myproc()->pgdir, sz, sz + n)) == 0)
       return -1;
   } else if(n < 0){
-    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if((sz = deallocuvm(myproc()->pgdir, sz, sz + n)) == 0)
       return -1;
   }
-  curproc->sz = sz;
-  switchuvm(curproc);
+  myproc()->sz = sz;
+  if(myproc()->isClone || myproc()->refCount > 0){
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->pgdir == myproc()->pgdir)
+        p->sz = sz;
+    }
+  }
+  switchuvm(myproc());
   return 0;
 }
 
@@ -227,42 +229,33 @@ fork(void)
 void
 exit(void)
 {
-  struct proc *curproc = myproc();
   struct proc *p;
   int fd;
 
-  if(curproc == initproc)
+  if(myproc() == initproc)
     panic("init exiting");
 
-  // Close all open files.
-  for(fd = 0; fd < NOFILE; fd++){
-    if(curproc->ofile[fd]){
-      fileclose(curproc->ofile[fd]);
-      curproc->ofile[fd] = 0;
+  if(myproc()->refCount == 0 && myproc()->isClone == 0) {
+    for(fd = 0; fd < NOFILE; fd++){
+      if(myproc()->ofile[fd]){
+        fileclose(myproc()->ofile[fd]);
+        myproc()->ofile[fd] = 0;
+      }
     }
+    iput(myproc()->cwd);
+    myproc()->cwd = 0;
+  } else {
+    iput(myproc()->cwd);
+    myproc()->cwd = 0;
   }
-
-  begin_op();
-  iput(curproc->cwd);
-  end_op();
-  curproc->cwd = 0;
 
   acquire(&ptable.lock);
-
-  // Parent might be sleeping in wait().
-  wakeup1(curproc->parent);
-
-  // Pass abandoned children to init.
+  wakeup1(myproc()->parent);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->parent == curproc){
+    if(p->parent == myproc())
       p->parent = initproc;
-      if(p->state == ZOMBIE)
-        wakeup1(initproc);
-    }
   }
-
-  // Jump into the scheduler, never to return.
-  curproc->state = ZOMBIE;
+  myproc()->state = ZOMBIE;
   sched();
   panic("zombie exit");
 }
@@ -531,4 +524,109 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int
+clone(void *stack)
+{
+  int i, pid;
+  struct proc *np;
+
+  if((np = allocproc()) == 0){
+    return -1;
+  }
+
+  np->pgdir = myproc()->pgdir;
+  np->sz = myproc()->sz;
+  np->parent = myproc();
+
+  *np->tf = *myproc()->tf;
+  uint stack_top = (uint)stack + PGSIZE;
+  np->tf->esp = (uint)stack + (myproc()->tf->esp - PGROUNDUP(myproc()->tf->esp));
+  np->tf->ebp = (uint)stack + (myproc()->tf->ebp - PGROUNDUP(myproc()->tf->esp));
+
+  copyout(myproc()->pgdir, (uint)stack, PGROUNDUP(myproc()->tf->esp) - PGSIZE, PGSIZE);
+
+  np->isClone = 1;
+  myproc()->refCount++;
+  acquire(&ptable.lock);
+  {
+    struct proc *p;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->pgdir == myproc()->pgdir)
+        p->refCount = myproc()->refCount;
+    }
+  }
+  release(&ptable.lock);
+
+  np->tf->eax = 0;
+
+  for(i = 0; i < NOFILE; i++){
+    if(myproc()->ofile[i])
+      np->ofile[i] = filedup(myproc()->ofile[i]);
+  }
+  np->cwd = idup(myproc()->cwd);
+
+  pid = np->pid;
+  np->state = RUNNABLE;
+  safestrcpy(np->name, myproc()->name, sizeof(myproc()->name));
+  return pid;
+}
+
+int
+join(void)
+{
+  struct proc *p;
+  int havekids, pid;
+
+  acquire(&ptable.lock);
+  for(;;){
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != myproc() || p->isClone == 0)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        p->state = UNUSED;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        myproc()->refCount--;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+    if(!havekids || myproc()->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+    sleep(myproc(), &ptable.lock);
+  }
+}
+
+int
+lock(int *lk)
+{
+  acquire(&ptable.lock);
+  while(*lk != 0) {
+    sleep(lk, &ptable.lock);
+  }
+  *lk = 1;
+  release(&ptable.lock);
+  return 0;
+}
+
+
+int
+unlock(int *lk)
+{
+  acquire(&ptable.lock);
+  *lk = 0;
+  wakeup(lk);
+  release(&ptable.lock);
+  return 0;
 }

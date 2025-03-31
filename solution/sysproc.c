@@ -89,3 +89,44 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+extern int clone(void *stack);
+
+int
+sys_clone(void)
+{
+  void *stack;
+  if(argptr(0, (void*)&stack, sizeof(void*)) < 0)
+    return -1;
+  return clone(stack);
+}
+
+extern int join(void);
+
+int
+sys_join(void)
+{
+  return join();
+}
+
+extern int lock(int *lk);
+
+int
+sys_lock(void)
+{
+  int *lk;
+  if(argptr(0, (void*)&lk, sizeof(int)) < 0)
+    return -1;
+  return lock(lk);
+}
+
+extern int unlock(int *lk);
+
+int
+sys_unlock(void)
+{
+  int *lk;
+  if(argptr(0, (void*)&lk, sizeof(int)) < 0)
+    return -1;
+  return unlock(lk);
+}
