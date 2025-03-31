@@ -6,12 +6,6 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
-#include "spinlock.h"
-
-extern struct {
-  struct spinlock lock;
-  struct proc proc[NPROC];
-} ptable;
 
 int
 sys_fork(void)
@@ -94,37 +88,4 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
-}
-
-int
-sys_clone(void)
-{
-  void *stack;
-  if(argptr(0, (void*)&stack, PGSIZE) < 0)
-    return -1;
-  return clone(stack);
-}
-
-int
-sys_join(void)
-{
-  return join();
-}
-
-int
-sys_lock(void)
-{
-  int *l;
-  if(argptr(0, (void*)&l, sizeof(int)) < 0)
-    return -1;
-  return lock(l);
-}
-
-int
-sys_unlock(void)
-{
-  int *l;
-  if(argptr(0, (void*)&l, sizeof(int)) < 0)
-    return -1;
-  return unlock(l);
 }

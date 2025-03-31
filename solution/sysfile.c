@@ -46,7 +46,6 @@ fdalloc(struct file *f)
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd] == 0){
       curproc->ofile[fd] = f;
-      allocThreads(f,fd);
       return fd;
     }
   }
@@ -100,7 +99,6 @@ sys_close(void)
   if(argfd(0, &fd, &f) < 0)
     return -1;
   myproc()->ofile[fd] = 0;
-  closeThreads(fd);
   fileclose(f);
   return 0;
 }
