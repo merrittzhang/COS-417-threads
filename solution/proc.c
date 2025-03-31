@@ -531,49 +531,47 @@ clone(void *stack)
 {
   int i, pid;
   struct proc *np;
-  struct proc *curproc = myproc();
-
-  if ((np = allocproc()) == 0)
+  if((np = allocproc()) == 0)
     return -1;
 
-  np->pgdir = curproc->pgdir;
-  np->sz = curproc->sz;
-  np->parent = curproc;
+  if((np->pgdir = myproc()->pgdir) == 0){
+    kfree(np->kstack);
+    np->kstack = 0;
+    np->state = UNUSED;
+    return -1;
+  }
+  np->sz = myproc()->sz;
+  np->parent = myproc();
+  *np->tf = *myproc()->tf;
 
-  *np->tf = *curproc->tf;
-  uint parent_stack_base = PGROUNDUP(curproc->tf->esp) - PGSIZE;
-  uint esp_offset = curproc->tf->esp - parent_stack_base;
-  uint ebp_offset = curproc->tf->ebp - parent_stack_base;
-  np->tf->esp = (uint)stack + esp_offset;
-  np->tf->ebp = (uint)stack + ebp_offset;
+  np->tf->esp = (uint)(stack + PGSIZE - (PGROUNDUP(myproc()->tf->esp) - myproc()->tf->esp));
+  np->tf->ebp = (uint)(stack + PGSIZE - (PGROUNDUP(myproc()->tf->ebp) - myproc()->tf->ebp));
+  
+  copyout(myproc()->pgdir, (uint)stack, (void*)PGROUNDUP(myproc()->tf->esp) - PGSIZE, (uint)PGSIZE);
 
-  np->isClone = 1;
-  curproc->refCount++;
+  myproc()->refCount++;
+  np->isClone=1;
+  np->refCount = myproc()->refCount; 
+   
   acquire(&ptable.lock);
+  struct proc *p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
   {
-    struct proc *p;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->pgdir == curproc->pgdir)
-        p->refCount = curproc->refCount;
-    }
+    if(p->pgdir == myproc()->pgdir)
+	    p->refCount = myproc()->refCount;	  
   }
   release(&ptable.lock);
 
   np->tf->eax = 0;
 
-  for(i = 0; i < NOFILE; i++){
-    if(curproc->ofile[i])
-      np->ofile[i] = filedup(curproc->ofile[i]);
-  }
-  np->cwd = idup(curproc->cwd);
-
+  for(i = 0; i < NOFILE; i++)
+    if(myproc()->ofile[i])
+      np->ofile[i] = filedup(myproc()->ofile[i]);
+  np->cwd = idup(myproc()->cwd);
+ 
   pid = np->pid;
   np->state = RUNNABLE;
-  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
-
-  if(pid != 0)
-    yield();
-
+  safestrcpy(np->name, myproc()->name, sizeof(myproc()->name));
   return pid;
 }
 
