@@ -531,32 +531,29 @@ clone(void *stack)
 {
   int i, pid;
   struct proc *np;
+  struct proc *curproc = myproc();
 
   if((np = allocproc()) == 0){
     return -1;
   }
 
-  np->pgdir = myproc()->pgdir;
-  np->sz = myproc()->sz;
-  np->parent = myproc();
-
-  *np->tf = *myproc()->tf;
-  np->tf->esp = (uint)stack + (myproc()->tf->esp - PGROUNDUP(myproc()->tf->esp));
-  np->tf->ebp = (uint)stack + (myproc()->tf->ebp - PGROUNDUP(myproc()->tf->esp));
-
-  char *src = uva2ka(myproc()->pgdir, (char*)(PGROUNDUP(myproc()->tf->esp) - PGSIZE));
-  if(src == 0)
-      panic("clone: uva2ka failed");
-  copyout(myproc()->pgdir, (uint)stack, src, PGSIZE);
+  np->pgdir = curproc->pgdir;
+  np->sz = curproc->sz;
+  np->parent = curproc;
+  
+  *np->tf = *curproc->tf;
+  uint parent_stack_bottom = PGROUNDUP(curproc->tf->esp) - PGSIZE;
+  np->tf->esp = (uint)stack + (curproc->tf->esp - parent_stack_bottom);
+  np->tf->ebp = (uint)stack + (curproc->tf->ebp - parent_stack_bottom);
 
   np->isClone = 1;
-  myproc()->refCount++;
+  curproc->refCount++;
   acquire(&ptable.lock);
   {
     struct proc *p;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->pgdir == myproc()->pgdir)
-        p->refCount = myproc()->refCount;
+      if(p->pgdir == curproc->pgdir)
+        p->refCount = curproc->refCount;
     }
   }
   release(&ptable.lock);
@@ -564,14 +561,13 @@ clone(void *stack)
   np->tf->eax = 0;
 
   for(i = 0; i < NOFILE; i++){
-    if(myproc()->ofile[i])
-      np->ofile[i] = filedup(myproc()->ofile[i]);
+    if(curproc->ofile[i])
+      np->ofile[i] = filedup(curproc->ofile[i]);
   }
-  np->cwd = idup(myproc()->cwd);
-
+  np->cwd = idup(curproc->cwd);
   pid = np->pid;
   np->state = RUNNABLE;
-  safestrcpy(np->name, myproc()->name, sizeof(myproc()->name));
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
   return pid;
 }
 
