@@ -611,24 +611,20 @@ join(void)
 }
 
 int
-lock(int *lk)
+lock(int *l)
 {
   acquire(&ptable.lock);
-  while(*lk != 0) {
-    sleep(lk, &ptable.lock);
+  while (xchg((unsigned int*)l, 1) == 1) {
+    sleep((void*)l, &ptable.lock);
   }
-  *lk = 1;
   release(&ptable.lock);
   return 0;
 }
 
-
 int
-unlock(int *lk)
+unlock(int *l)
 {
-  acquire(&ptable.lock);
-  *lk = 0;
-  wakeup(lk);
-  release(&ptable.lock);
+  xchg((unsigned int*)l, 0);
+  wakeup((void*)l);
   return 0;
 }

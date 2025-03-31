@@ -114,19 +114,21 @@ extern int lock(int *lk);
 int
 sys_lock(void)
 {
-  int *lk;
-  if(argptr(0, (void*)&lk, sizeof(int)) < 0)
+  void *argLock;
+  if(argptr(0, (void*)&argLock, sizeof(void*)) < 0)
     return -1;
-  return lock(lk);
+  int *intLock = (int*)argLock;
+  lock(intLock);
+  return myproc()->pid;
 }
-
-extern int unlock(int *lk);
 
 int
 sys_unlock(void)
 {
-  int *lk;
-  if(argptr(0, (void*)&lk, sizeof(int)) < 0)
+  void *argLock;
+  if(argptr(0, (void*)&argLock, sizeof(void*)) < 0)
     return -1;
-  return unlock(lk);
+  int *intLock = (int*)argLock;
+  unlock(intLock);
+  return myproc()->pid;
 }
