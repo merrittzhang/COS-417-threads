@@ -545,17 +545,16 @@ clone(void *stack)
 
   np->pgdir = curp->pgdir;
 
-  if(curp->threadcount < 1){
+  if(curp->threadcount < 1)
     curp->threadcount = 1;
-  }
-  curp->threadcount += 1;
+  curp->threadcount++;
   np->threadcount = curp->threadcount;
 
   np->isthread = 1;
 
   *np->tf = *curp->tf;
-  np->tf->esp = (uint)stack + PGSIZE - 4; 
-  np->tf->ebp = np->tf->esp; 
+  np->tf->esp = (uint)stack + PGSIZE - 4;
+  np->tf->ebp = np->tf->esp;
   np->tf->eax = 0;
 
   for(int i = 0; i < NOFILE; i++){
