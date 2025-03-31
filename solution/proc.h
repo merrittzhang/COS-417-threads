@@ -50,7 +50,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int refCount;                // Number of threads sharing this pgdir.
-  int isThread;                 // Flag: 1 if this proc is a thread (created by clone), 0 otherwise.
+  int isThread;                // Flag: 1 if this proc is a thread (created by clone), 0 otherwise.
 };
 
 // Process memory is laid out contiguously, low addresses first:
