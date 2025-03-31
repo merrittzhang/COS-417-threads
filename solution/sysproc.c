@@ -122,6 +122,8 @@ sys_lock(void)
   return myproc()->pid;
 }
 
+extern int unlock(int *lk);
+
 int
 sys_unlock(void)
 {
