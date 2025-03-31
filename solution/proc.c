@@ -529,7 +529,7 @@ procdump(void)
 int
 clone(void *stack)
 {
-  int i, pid;
+  int i;
   struct proc *np;
   if((np = allocproc()) == 0)
     return -1;
@@ -569,10 +569,9 @@ clone(void *stack)
       np->ofile[i] = filedup(myproc()->ofile[i]);
   np->cwd = idup(myproc()->cwd);
  
-  pid = np->pid;
   np->state = RUNNABLE;
   safestrcpy(np->name, myproc()->name, sizeof(myproc()->name));
-  return pid;
+  return np->pid;
 }
 
 int
