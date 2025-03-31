@@ -532,3 +532,96 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+int
+clone(void *stack)
+{
+  struct proc *np;
+  struct proc *curp = myproc();
+
+  if((np = allocproc()) == 0){
+    return -1;
+  }
+
+  np->pgdir = curp->pgdir;
+
+  if(curp->threadcount < 1){
+    curp->threadcount = 1;
+  }
+  curp->threadcount += 1;
+  np->threadcount = curp->threadcount;
+
+  np->isthread = 1;
+
+  *np->tf = *curp->tf;
+  np->tf->esp = (uint)stack + PGSIZE - 4; 
+  np->tf->ebp = np->tf->esp; 
+  np->tf->eax = 0;
+
+  for(int i = 0; i < NOFILE; i++){
+    if(curp->ofile[i]){
+      np->ofile[i] = filedup(curp->ofile[i]);
+    }
+  }
+  np->cwd = idup(curp->cwd);
+
+  safestrcpy(np->name, curp->name, sizeof(np->name));
+  np->parent = curp;
+
+  acquire(&ptable.lock);
+  np->state = RUNNABLE;
+  release(&ptable.lock);
+
+  return np->pid;
+}
+
+int
+join(void)
+{
+  struct proc *p;
+  struct proc *curp = myproc();
+  int havekids, pid;
+
+  acquire(&ptable.lock);
+  for(;;){
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != curp)
+        continue;
+      if(!p->isthread)
+        continue;
+      havekids = 1;
+
+      if(p->state == ZOMBIE){
+        pid = p->pid;
+
+        kfree(p->kstack);
+        p->kstack = 0;
+
+        curp->threadcount--;
+        if(curp->threadcount <= 1){
+          freevm(p->pgdir);
+          curp->threadcount = 0;
+        }
+
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->isthread = 0;
+        p->threadcount = 0;
+        p->state = UNUSED;
+
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    if(!havekids || curp->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    sleep(curp, &ptable.lock);
+  }
+}
