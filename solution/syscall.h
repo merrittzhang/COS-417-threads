@@ -21,6 +21,6 @@
 #define SYS_mkdir  20
 #define SYS_close  21
 #define SYS_clone  22
-#define SYS_join   23
-#define SYS_lock   24
-#define SYS_unlock 25
+#define SYS_lock   23
+#define SYS_unlock 24
+#define SYS_join   25
