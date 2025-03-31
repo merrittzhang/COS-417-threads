@@ -95,6 +95,10 @@ sys_uptime(void)
   return xticks;
 }
 
+extern int clone(void *stack);
+extern int join(void);
+
+
 int
 sys_clone(void)
 {
